@@ -172,10 +172,10 @@ class MinecraftServerService(
             }
         }
 
-        logger.debug("Server $serverName output: $line")
+        logger.debug("[Info][Server-$serverName] $line")
     }
 
     override fun onErrorLine(serverName: String, line: String) {
-        logger.debug("Server $serverName error: $line")
+        logger.debug("[Error][Server-$serverName] $line")
     }
 }

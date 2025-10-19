@@ -46,7 +46,7 @@ class MinecraftServerContainer(
                 val outputThread = Thread {
                     inputReader.useLines { lines ->
                         lines.forEach { line ->
-                            logger.debug("Server ${serverConfig.serverName} Output: $line")
+                            logger.debug("[Server-${serverConfig.serverName}] $line")
                             ioListener.onOutputLine(line)
                         }
                     }
@@ -56,7 +56,7 @@ class MinecraftServerContainer(
                 val errorThread = Thread {
                     errorReader.useLines { lines ->
                         lines.forEach { line ->
-                            logger.debug("Server ${serverConfig.serverName} Error: $line")
+                            logger.debug("[Server-${serverConfig.serverName}] $line")
                             ioListener.onErrorLine(line)
                         }
                     }
