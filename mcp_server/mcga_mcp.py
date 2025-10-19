@@ -9,7 +9,7 @@ from datetime import datetime
 mcp = FastMCP("ServerManagement")
 
 class ServerManager:
-    def __init__(self, base_url: str):
+    def __init__(self):
         self.base_url = os.getenv("SERVER_MANAGEMENT_BASE_URL", "")
         self.token = os.getenv("SERVER_MANAGEMENT_TOKEN", "")
         self.headers = {
