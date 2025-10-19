@@ -82,11 +82,10 @@ class MinecraftServerContainer(
             // 向服务器输入命令
             try {
                 logger.info("Writing to server ${serverConfig.serverName}: $line")
-                process!!.outputStream.bufferedWriter().use { writer ->
-                    writer.write(line)
-                    writer.newLine()
-                    writer.flush()
-                }
+                val writer = process!!.outputStream.bufferedWriter()
+                writer.write(line)
+                writer.newLine()
+                writer.flush()
             } catch (e: Exception) {
                 logger.error("Error writing to server ${serverConfig.serverName}", e)
                 throw ResponsiveException("Error writing to server: ${e.message}")

@@ -25,6 +25,16 @@ class MinecraftServerService(
     private val logger = LoggerFactory.getLogger(javaClass)
     private val serverContainers: MutableMap<String, MinecraftServerContainer> = mutableMapOf()
 
+    /**
+     * 扫描当前工作目录下的子文件夹，识别包含 server.properties 的文件夹为一个服务器实例。
+     * 配置项说明（来自 server.properties）：
+     * - mcga-enabled: 是否被 mcga 管理，缺省为 true，若为 false 则跳过该文件夹。
+     * - server-name: 可选，若未配置则使用文件夹名作为服务器名。
+     * - server-jar-file: 必须，指定用于启动的 JAR 文件名（相对 serverDir）。
+     * - jvm-params: 可选，启动时传递给 JVM 的参数字符串。
+     *
+     * 若发现重复的 serverName 将抛出 ResponsiveException。
+     */
     fun listAllServers(): List<MinecraftServerConfig> {
         // 扫描当前文件夹下所有的子文件夹，如果包含server.properties，就认为是一个服务器
         // 其中的server-name是服务器名，如果没有这一项，就默认服务器名为子文件夹名字
@@ -78,6 +88,27 @@ class MinecraftServerService(
         return servers
     }
 
+    /**
+     * 判断指定名称的服务器当前是否处于运行状态。
+     * 线程安全地读取内部的 serverContainers 映射（使用 synchronized）。
+     *
+     * 返回 true 表示正在运行（已在 serverContainers 中存在对应容器）。
+     */
+    fun isServerRunning(serverName: String): Boolean {
+        synchronized(serverContainers) {
+            return serverContainers.containsKey(serverName)
+        }
+    }
+
+    /**
+     * 发起启动指定服务器的操作（同步调用 Service 层以启动容器）。
+     * 行为与异常：
+     * - 如果服务器配置不存在，抛出 ResponsiveException("Server X not found")。
+     * - 如果服务器已在运行，抛出 ResponsiveException("Server X is already running")。
+     * - 成功时将在 serverContainers 中登记新的 MinecraftServerContainer。
+     *
+     * 本方法对 serverContainers 的读写采用 synchronized(serverContainers) 保证线程安全。
+     */
     fun startServer(serverName: String) {
         val serverConfig = listAllServers().find { it.serverName == serverName }
             ?: throw ResponsiveException("Server $serverName not found")
@@ -93,6 +124,14 @@ class MinecraftServerService(
         }
     }
 
+    /**
+     * 发起停止指定服务器的操作。
+     * 行为与异常：
+     * - 如果服务器未在运行，抛出 ResponsiveException("Server X is not running")。
+     * - 成功时会调用容器的 stopServer 并从 serverContainers 中移除该容器。
+     *
+     * 本方法对 serverContainers 的读写采用 synchronized(serverContainers) 保证线程安全。
+     */
     fun stopServer(serverName: String) {
         synchronized(serverContainers) {
             val container = serverContainers[serverName]
