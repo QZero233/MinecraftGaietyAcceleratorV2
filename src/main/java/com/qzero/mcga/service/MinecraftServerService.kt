@@ -32,6 +32,8 @@ class MinecraftServerService(
      * - server-name: 可选，若未配置则使用文件夹名作为服务器名。
      * - server-jar-file: 必须，指定用于启动的 JAR 文件名（相对 serverDir）。
      * - jvm-params: 可选，启动时传递给 JVM 的参数字符串。
+     * - backup-dir: 可选，指定备份目录（可以是绝对路径或相对于 serverDir 的相对路径），
+     *   若未配置则默认使用 serverDir 下的 backups 目录。
      *
      * 若发现重复的 serverName 将抛出 ResponsiveException。
      */
@@ -40,6 +42,7 @@ class MinecraftServerService(
         // 其中的server-name是服务器名，如果没有这一项，就默认服务器名为子文件夹名字
         // 其中的server-jar-file为jar文件名
         // 其中的jvm-params为启动时Java虚拟机参数
+        // 其中的backup-dir为地图备份路径（如果为空默认是服务器目录的backups文件夹）
         // 其中的mcga-enabled表示是否纳入mcga管理，如果为false，则跳过，如果没有，就默认true
         // 如果命名有冲突，就直接报错
 
@@ -69,6 +72,15 @@ class MinecraftServerService(
                     ?: throw ResponsiveException("server-jar-file is missing in ${folder.path}/server.properties")
                 val serverJvmParameters = props.getProperty("jvm-params", "")
 
+                // 解析 backup-dir（可以是相对路径或绝对路径），缺省为 folder/backups
+                val backupDirProp = props.getProperty("backup-dir", "").trim()
+                val backupDir = if (backupDirProp.isNotEmpty()) {
+                    val candidate = File(backupDirProp)
+                    if (candidate.isAbsolute) candidate else File(folder, backupDirProp)
+                } else {
+                    File(folder, "backups")
+                }
+
                 // 检查服务器名称是否重复
                 if (!serverNames.add(serverName)) {
                     throw ResponsiveException("Duplicate server name detected: $serverName")
@@ -79,7 +91,8 @@ class MinecraftServerService(
                         serverName = serverName,
                         serverDir = folder,
                         serverJarFileName = serverJarFileName,
-                        serverJvmParameters = serverJvmParameters
+                        serverJvmParameters = serverJvmParameters,
+                        backupDir = backupDir
                     )
                 )
             }

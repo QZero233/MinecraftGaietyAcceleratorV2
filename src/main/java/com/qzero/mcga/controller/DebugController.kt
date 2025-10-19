@@ -3,17 +3,20 @@ package com.qzero.mcga.controller
 import com.qzero.mcga.event.ServerEvent
 import com.qzero.mcga.event.ServerEventCenter
 import com.qzero.mcga.event.ServerEventListener
+import com.qzero.mcga.service.MapBackupService
 import com.qzero.mcga.service.MinecraftServerService
 import com.qzero.mcga.utils.UUIDUtils
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import java.io.File
 
 @RestController
 class DebugController(
     private val serverService: MinecraftServerService,
-    private val eventCenter: ServerEventCenter
+    private val eventCenter: ServerEventCenter,
+    private val backupService: MapBackupService
 ): ServerEventListener {
 
     override val listenerId: String = UUIDUtils.getRandomUUID()
@@ -55,6 +58,11 @@ class DebugController(
         value: String
     ) {
         serverService.changeServerProperty("test", key, value)
+    }
+
+    @GetMapping("/debug/backup-map")
+    fun backupMap() {
+        backupService.backupMap(serverService.listAllServers()[0], File("./server/backup.zip"))
     }
 
 }

@@ -11,6 +11,9 @@ class MinecraftServerConfig(
     val serverDir: File,
     val serverJarFileName: String,
     val serverJvmParameters: String,
+    // backupDir: 指定备份文件夹的路径（如果在 server.properties 中配置了 backup-dir，则使用该路径；
+    // 否则由上层构造时提供默认值，例如 serverDir 下的 backups 目录）
+    val backupDir: File
 ) {
 
     fun genStartCommand(runtimeConfig: RuntimeConfig): String {
@@ -36,7 +39,7 @@ class MinecraftServerConfig(
     }
 
     override fun toString(): String {
-        return "MinecraftServerConfig(serverName='$serverName', serverDir=$serverDir, serverJarFileName='$serverJarFileName', serverJvmParameters='$serverJvmParameters')"
+        return "MinecraftServerConfig(serverName='$serverName', serverDir=$serverDir, serverJarFileName='$serverJarFileName', serverJvmParameters='$serverJvmParameters', backupDir=$backupDir)"
     }
 
 
