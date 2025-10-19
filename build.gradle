@@ -2,6 +2,8 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.5.6'
     id 'io.spring.dependency-management' version '1.1.7'
+
+    id 'org.jetbrains.kotlin.jvm' version '2.1.0'
 }
 
 group = 'com.qzero'
@@ -19,9 +21,18 @@ repositories {
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-web'
+    // 使用 spring-boot-starter-web，但排除默认的 spring-boot-starter-logging 和 commons-logging
+    implementation('org.springframework.boot:spring-boot-starter-web') {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+        exclude group: 'commons-logging', module: 'commons-logging'
+    }
+
+    // 使用 Log4j2 作为 Spring Boot 的日志实现
+    implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 }
 
 tasks.named('test') {

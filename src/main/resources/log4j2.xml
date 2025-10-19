@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+
+    <Appenders>
+        <Console name="ConsoleInfo" target="SYSTEM_OUT">
+            <PatternLayout pattern="%highlight{[%p]    %d{yyyy-MM-dd HH:mm:ss.SSS}|%logger|%msg %n}{FATAL=red, ERROR=red, WARN=yellow, INFO=cyan, DEBUG=blue,TRACE=blue}"/>
+        </Console>
+
+        <Console name="ConsoleError" target="SYSTEM_ERR">
+            <PatternLayout pattern="%highlight{[%p]    %d{yyyy-MM-dd HH:mm:ss.SSS}|%logger|%l|%msg %n}{FATAL=red, ERROR=red, WARN=yellow, INFO=cyan, DEBUG=blue,TRACE=blue}"/>
+        </Console>
+
+        <RollingFile name="FileInfo" fileName="logs/info.log"
+                     filePattern="logs_mc/info/$d{yyyy-MM}/info-%d{yyyy-MM-dd}-%i.log">
+
+            <PatternLayout pattern="[%p]    %d{HH:mm:ss:SSS}|%logger|%msg %n"/>
+
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="12"/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="20"/>
+
+        </RollingFile>
+
+        <RollingFile name="FileError" fileName="logs/error.log"
+                     filePattern="logs_mc/error/$d{yyyy-MM}/error-%d{yyyy-MM-dd}-%i.log">
+
+            <PatternLayout pattern="[%p]    %d{HH:mm:ss:SSS}|%logger|%l|%msg %n"/>
+
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="20"/>
+
+        </RollingFile>
+
+
+        <RollingFile name="MinecraftServerLogInfo" fileName="logs_mc/info.log"
+                     filePattern="logs_mc/info/$d{yyyy-MM}/info-%d{yyyy-MM-dd}-%i.log">
+
+            <PatternLayout pattern="[%p]    %d{HH:mm:ss:SSS}|%logger|%msg %n"/>
+
+            <Policies>
+                <TimeBasedTriggeringPolicy interval="12"/>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="20"/>
+
+        </RollingFile>
+
+        <RollingFile name="MinecraftServerLogError" fileName="logs_mc/error.log"
+                     filePattern="logs_mc/error/$d{yyyy-MM}/error-%d{yyyy-MM-dd}-%i.log">
+
+            <PatternLayout pattern="[%p]    %d{HH:mm:ss:SSS}|%logger|%l|%msg %n"/>
+
+            <Policies>
+                <SizeBasedTriggeringPolicy size="10MB"/>
+            </Policies>
+
+            <DefaultRolloverStrategy max="20"/>
+
+        </RollingFile>
+    </Appenders>
+
+    <Loggers>
+
+        <logger name="MinecraftServerRunner" level="DEBUG" additivity="false">
+            <AppenderRef ref="MinecraftServerLogInfo">
+                <!-- Without error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="ACCEPT"/>
+                    <ThresholdFilter level="FATAL" onMatch="DENY" onMismatch="ACCEPT"/>
+                </Filters>
+            </AppenderRef>
+
+            <AppenderRef ref="MinecraftServerLogError">
+                <!-- Only error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+                    <ThresholdFilter level="FATAL" onMatch="ACCEPT" onMismatch="DENY"/>
+                </Filters>
+            </AppenderRef>
+        </logger>
+
+        <logger level="TRACE" name="com.qzero" additivity="false">
+            <AppenderRef ref="ConsoleInfo">
+                <!-- Without error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="ACCEPT"/>
+                    <ThresholdFilter level="FATAL" onMatch="DENY" onMismatch="ACCEPT"/>
+                </Filters>
+            </AppenderRef>
+
+            <AppenderRef ref="FileInfo">
+                <!-- Without error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="DENY" onMismatch="ACCEPT"/>
+                    <ThresholdFilter level="FATAL" onMatch="DENY" onMismatch="ACCEPT"/>
+                </Filters>
+            </AppenderRef>
+
+            <AppenderRef ref="ConsoleError">
+                <!-- Only error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+                    <ThresholdFilter level="FATAL" onMatch="ACCEPT" onMismatch="DENY"/>
+                </Filters>
+            </AppenderRef>
+
+            <AppenderRef ref="FileError">
+                <!-- Only error and fatal -->
+                <Filters>
+                    <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+                    <ThresholdFilter level="FATAL" onMatch="ACCEPT" onMismatch="DENY"/>
+                </Filters>
+            </AppenderRef>
+        </logger>
+
+        <Root level="ERROR">
+            <AppenderRef ref="ConsoleError" />
+        </Root>
+
+
+        <logger name="empty" level="FATAL">
+
+        </logger>
+
+    </Loggers>
+</Configuration>
