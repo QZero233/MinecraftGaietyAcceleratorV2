@@ -18,8 +18,19 @@ object ProcessWorker {
         }
     }
 
+    private var localStdIOThread = object : Thread() {
+        override fun run() {
+            val reader = System.`in`.bufferedReader()
+            while (true) {
+                val line = reader.readLine() ?: break
+                processThread?.writeLine(line)
+            }
+        }
+    }
+
     init {
         heartBeatThread.start()
+        localStdIOThread.start()
     }
 
     fun registerClientThread(clientThread: DaemonClientHandlerThread) {
