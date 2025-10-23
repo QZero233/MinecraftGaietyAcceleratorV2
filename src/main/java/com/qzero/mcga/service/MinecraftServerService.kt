@@ -9,8 +9,10 @@ import com.qzero.mcga.event.ServerStartedEvent
 import com.qzero.mcga.event.ServerStoppedEvent
 import com.qzero.mcga.exception.ResponsiveException
 import com.qzero.mcga.minecraft.MinecraftServerConfig
-import com.qzero.mcga.minecraft.MinecraftServerContainer
+import com.qzero.mcga.minecraft.container.EmbedMinecraftServerContainer
 import com.qzero.mcga.minecraft.MinecraftServerEventListener
+import com.qzero.mcga.minecraft.container.IMinecraftServerContainer
+import com.qzero.mcga.minecraft.container.daemon.DaemonMinecraftServerContainer
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
@@ -23,7 +25,33 @@ class MinecraftServerService(
 ): MinecraftServerEventListener {
 
     private val logger = LoggerFactory.getLogger(javaClass)
-    private val serverContainers: MutableMap<String, MinecraftServerContainer> = mutableMapOf()
+    private val serverContainers: MutableMap<String, IMinecraftServerContainer> = mutableMapOf()
+
+    /**
+     * 获取指定名称的服务器容器实例，若不存在则初始化一个新的实例并返回。
+     */
+    private fun getContainerAndInitIfMissing(serverName: String): IMinecraftServerContainer {
+        val serverConfig = listAllServers().find { it.serverName == serverName }
+            ?: throw ResponsiveException("Server $serverName not found")
+
+        synchronized(serverContainers) {
+            val container: IMinecraftServerContainer
+            if (!serverContainers.containsKey(serverName)) {
+                container = if (serverConfig.daemonPort != 0) {
+                    val c = DaemonMinecraftServerContainer(runtimeConfig, serverConfig, this)
+                    Thread.sleep(1000) // 等待1秒确保TCP连接完成
+                    c
+                } else {
+                    EmbedMinecraftServerContainer(runtimeConfig, serverConfig, this)
+                }
+                serverContainers[serverName] = container
+            } else {
+                container = serverContainers[serverName]!!
+            }
+
+            return container
+        }
+    }
 
     /**
      * 扫描当前工作目录下的子文件夹，识别包含 server.properties 的文件夹为一个服务器实例。
@@ -81,6 +109,9 @@ class MinecraftServerService(
                     File(folder, "backups")
                 }
 
+                // 解析daemonPort（可选，没有或者为0就代表不使用daemon）
+                val daemonPort = props.getProperty("daemon-port", "0").toIntOrNull() ?: 0
+
                 // 检查服务器名称是否重复
                 if (!serverNames.add(serverName)) {
                     throw ResponsiveException("Duplicate server name detected: $serverName")
@@ -92,7 +123,8 @@ class MinecraftServerService(
                         serverDir = folder,
                         serverJarFileName = serverJarFileName,
                         serverJvmParameters = serverJvmParameters,
-                        backupDir = backupDir
+                        backupDir = backupDir,
+                        daemonPort = daemonPort
                     )
                 )
             }
@@ -108,9 +140,7 @@ class MinecraftServerService(
      * 返回 true 表示正在运行（已在 serverContainers 中存在对应容器）。
      */
     fun isServerRunning(serverName: String): Boolean {
-        synchronized(serverContainers) {
-            return serverContainers.containsKey(serverName)
-        }
+        return getContainerAndInitIfMissing(serverName).isServerRunning()
     }
 
     /**
@@ -123,18 +153,12 @@ class MinecraftServerService(
      * 本方法对 serverContainers 的读写采用 synchronized(serverContainers) 保证线程安全。
      */
     fun startServer(serverName: String) {
-        val serverConfig = listAllServers().find { it.serverName == serverName }
-            ?: throw ResponsiveException("Server $serverName not found")
-
-        synchronized(serverContainers) {
-            if (serverContainers.containsKey(serverName)) {
-                throw ResponsiveException("Server $serverName is already running")
-            }
-
-            val container = MinecraftServerContainer(runtimeConfig, serverConfig, this)
-            container.startServer()
-            serverContainers[serverName] = container
+        val container = getContainerAndInitIfMissing(serverName)
+        if (container.isServerRunning()) {
+            throw ResponsiveException("Server $serverName is already running")
         }
+
+        container.startServer()
     }
 
     /**
@@ -142,22 +166,18 @@ class MinecraftServerService(
      * 行为与异常：
      * - 如果服务器未在运行，抛出 ResponsiveException("Server X is not running")。
      * - 成功时会调用容器的 stopServer 并从 serverContainers 中移除该容器。
-     *
-     * 本方法对 serverContainers 的读写采用 synchronized(serverContainers) 保证线程安全。
      */
     fun stopServer(serverName: String) {
-        synchronized(serverContainers) {
-            val container = serverContainers[serverName]
-                ?: throw ResponsiveException("Server $serverName is not running")
+        val container = getContainerAndInitIfMissing(serverName)
 
-            container.stopServer()
+        container.stopServer()
+        synchronized(serverContainers) {
             serverContainers.remove(serverName)
         }
     }
 
     fun sendCommand(serverName: String, command: String) {
-        val container = serverContainers[serverName]
-            ?: throw ResponsiveException("Server $serverName is not running")
+        val container = getContainerAndInitIfMissing(serverName)
 
         container.sendCommand(command)
     }
@@ -178,9 +198,6 @@ class MinecraftServerService(
         serverConfig.saveServerProperties(properties)
     }
 
-    override fun onServerStarted(serverName: String) {
-        serverEventCenter.publishServerEvent(ServerStartedEvent(serverName))
-    }
 
     override fun onServerStopped(serverName: String) {
         serverEventCenter.publishServerEvent(ServerStoppedEvent(serverName))
@@ -190,6 +207,14 @@ class MinecraftServerService(
     }
 
     override fun onOutputLine(serverName: String, line: String) {
+        // 匹配服务器启动
+        run {
+            if (line.contains(Regex("""Done \(\d+\.\d+s\)\! For help, type "help""""))) {
+                logger.info("Server $serverName has started")
+                serverEventCenter.publishServerEvent(ServerStartedEvent(serverName))
+            }
+        }
+
         // 匹配玩家发言的格式，包括尖括号
         run {
             val messageRegex = Regex(""".*<(.+)> (.+)""")

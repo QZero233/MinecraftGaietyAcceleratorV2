@@ -13,7 +13,9 @@ class MinecraftServerConfig(
     val serverJvmParameters: String,
     // backupDir: 指定备份文件夹的路径（如果在 server.properties 中配置了 backup-dir，则使用该路径；
     // 否则由上层构造时提供默认值，例如 serverDir 下的 backups 目录）
-    val backupDir: File
+    val backupDir: File,
+    // 为0代表不启用daemon模式
+    val daemonPort: Int
 ) {
 
     fun genStartCommand(runtimeConfig: RuntimeConfig): String {

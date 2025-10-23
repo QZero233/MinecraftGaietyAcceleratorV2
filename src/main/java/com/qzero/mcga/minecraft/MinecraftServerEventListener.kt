@@ -14,8 +14,4 @@ interface MinecraftServerEventListener {
     fun onServerStopped(serverName: String) {
 
     }
-
-    fun onServerStarted(serverName: String) {
-
-    }
 }

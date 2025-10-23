@@ -1,15 +1,17 @@
-package com.qzero.mcga.minecraft
+package com.qzero.mcga.minecraft.container
 
 import com.qzero.mcga.config.RuntimeConfig
 import com.qzero.mcga.exception.ResponsiveException
+import com.qzero.mcga.minecraft.MinecraftServerConfig
+import com.qzero.mcga.minecraft.MinecraftServerEventListener
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class MinecraftServerContainer(
-    private val runtimeConfig: RuntimeConfig,
-    private val serverConfig: MinecraftServerConfig,
-    private val eventListener: MinecraftServerEventListener
-) {
+class EmbedMinecraftServerContainer(
+    override val runtimeConfig: RuntimeConfig,
+    override val serverConfig: MinecraftServerConfig,
+    override val eventListener: MinecraftServerEventListener
+): IMinecraftServerContainer {
 
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -98,7 +100,7 @@ class MinecraftServerContainer(
     }
 
 
-    fun startServer() {
+    override fun startServer() {
         synchronized(this) {
             if (runnerThread != null && runnerThread!!.isProcessRunning()) {
                 throw ResponsiveException("Server ${serverConfig.serverName} is already running")
@@ -110,12 +112,6 @@ class MinecraftServerContainer(
                 startCommand = serverConfig.genStartCommand(runtimeConfig),
                 ioListener = object : ServerIOListener {
                     override fun onOutputLine(line: String) {
-                        // 检查是否包含启动成功的标志
-                        if (line.contains(Regex("""Done \(\d+\.\d+s\)\! For help, type "help""""))) {
-                            logger.info("Server ${serverConfig.serverName} has started")
-                            eventListener.onServerStarted(serverConfig.serverName)
-                        }
-
                         eventListener.onOutputLine(serverConfig.serverName, line)
                     }
 
@@ -125,7 +121,7 @@ class MinecraftServerContainer(
 
                     override fun onServerStopped() {
                         logger.info("Server ${serverConfig.serverName} has stopped")
-                        synchronized(this@MinecraftServerContainer) {
+                        synchronized(this@EmbedMinecraftServerContainer) {
                             runnerThread = null
                         }
 
@@ -138,7 +134,7 @@ class MinecraftServerContainer(
         }
     }
 
-    fun stopServer() {
+    override fun stopServer() {
         synchronized(this) {
             if (runnerThread == null || !runnerThread!!.isProcessRunning()) {
                 throw ResponsiveException("Server ${serverConfig.serverName} is not running")
@@ -148,7 +144,7 @@ class MinecraftServerContainer(
         }
     }
 
-    fun sendCommand(command: String) {
+    override fun sendCommand(command: String) {
         synchronized(this) {
             if (runnerThread == null || !runnerThread!!.isProcessRunning()) {
                 throw ResponsiveException("Server ${serverConfig.serverName} is not running")
@@ -156,6 +152,10 @@ class MinecraftServerContainer(
 
             runnerThread?.writeLine(command)
         }
+    }
+
+    override fun isServerRunning(): Boolean {
+        return runnerThread != null && runnerThread!!.isProcessRunning()
     }
 
 }
