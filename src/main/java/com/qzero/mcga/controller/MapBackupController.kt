@@ -63,7 +63,10 @@ class MapBackupController(
         backupFile.parentFile?.let { if (!it.exists()) it.mkdirs() }
 
         // 调用 Service 执行备份（会抛出 ResponsiveException 以供上层处理）
-        backupService.backupMap(serverConfig, backupFile)
+        // 转异步操作
+        Thread {
+            backupService.backupMap(serverConfig, backupFile)
+        }.start()
 
         // 不返回任何 data，仅返回成功状态
         return ActionResult(true)
