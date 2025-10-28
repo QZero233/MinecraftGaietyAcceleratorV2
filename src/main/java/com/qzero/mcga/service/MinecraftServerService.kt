@@ -255,4 +255,11 @@ class MinecraftServerService(
     override fun onErrorLine(serverName: String, line: String) {
         logger.debug("[Error][Server-$serverName] $line")
     }
+
+    fun sendChatMessage(serverName: String, message: String) {
+        val container = getContainerAndInitIfMissing(serverName)
+        message.split("\n").forEach {
+            container.sendCommand("say $it")
+        }
+    }
 }
