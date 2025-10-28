@@ -26,7 +26,9 @@ class ChatBotService(
                 val response = getChatResponse(query, event.serverName, event.playerName)
                 minecraftServerService.sendChatMessage(
                     event.serverName,
-                    "§6[A酱] § $response"
+                    response.split("\n").map {
+                        "§6[A酱]§  $it"
+                    }
                 )
             }
         }

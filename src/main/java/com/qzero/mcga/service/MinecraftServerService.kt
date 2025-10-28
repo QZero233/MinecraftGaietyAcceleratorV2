@@ -256,9 +256,9 @@ class MinecraftServerService(
         logger.debug("[Error][Server-$serverName] $line")
     }
 
-    fun sendChatMessage(serverName: String, message: String) {
+    fun sendChatMessage(serverName: String, messageLines: List<String>) {
         val container = getContainerAndInitIfMissing(serverName)
-        message.split("\n").forEach {
+        messageLines.forEach {
             container.sendCommand("say $it")
         }
     }
