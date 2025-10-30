@@ -194,4 +194,24 @@ class MinecraftServerController(
         return ActionResult(true)
     }
 
+    /**
+     * 接口名称：从备份目录加载地图并设置为当前 world（修改 level-name）
+     * 接口路径：/server/{serverName}/loadMap
+     * 请求方法：POST
+     * 请求参数：
+     * - path variable: serverName
+     * - request param: mapName - 地图 zip 文件名（例如 mymap.zip）
+     *
+     * 行为说明：
+     * - 仅在服务器未运行时允许加载地图（Service 层会校验并抛出异常）
+     */
+    @PostMapping("/server/{serverName}/loadMap")
+    fun loadMap(
+        @PathVariable serverName: String,
+        @RequestParam mapName: String
+    ): ActionResult {
+        minecraftServerService.loadMap(serverName, mapName)
+        return ActionResult(true)
+    }
+
 }

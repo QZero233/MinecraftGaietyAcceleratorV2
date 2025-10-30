@@ -269,4 +269,97 @@ class MinecraftServerService(
 
         getContainerAndInitIfMissing(serverName)
     }
+
+    /**
+     * 从地图备份目录加载地图
+     * 地图会加载到一个与当前level-name不重名的文件夹，并不会对现有的存档造成影响
+     * 加载完成后会修改server.properties中的level-name为新加载的地图名称
+     *
+     * mapName是一个zip压缩包
+     */
+    fun loadMap(serverName: String, mapName: String) {
+        val container = getContainerAndInitIfMissing(serverName)
+        if (container.isServerRunning()) {
+            throw ResponsiveException("Cannot load map while server is running: $serverName")
+        }
+
+        val serverConfig = listAllServers().find { it.serverName == serverName }
+            ?: throw ResponsiveException("Server $serverName not found")
+
+        val backupDir = serverConfig.backupDir
+        val mapFile = File(backupDir, mapName)
+        if (!mapFile.exists() || !mapFile.isFile) {
+            throw ResponsiveException("Map file not found: $mapName")
+        }
+
+        // 解压缩地图文件到一个新的文件夹，文件夹名称为mapName去掉.zip
+        var newMapDirName = mapName.removeSuffix(".zip")
+        val newMapDir = File(serverConfig.serverDir, newMapDirName)
+        if (newMapDir.exists()) {
+            // 如果有冲突就换个名字，直到没有冲突为止
+            var index = 1
+            while (true) {
+                val candidateName = "${newMapDirName}_$index"
+                val candidateDir = File(serverConfig.serverDir, candidateName)
+                if (!candidateDir.exists()) {
+                    newMapDirName = candidateName
+                    break
+                }
+                index++
+            }
+        }
+
+        unzip(mapFile, newMapDir)
+        // 检查一下，如果文件夹里面没有level.dat，并且还有子文件夹，那么就把字文件夹复制出来，直到指定文件夹里有level.dat为止
+        fun containsLevelDat(dir: File): Boolean {
+            return File(dir, "level.dat").exists()
+        }
+        var currentDir = newMapDir
+        while (!containsLevelDat(currentDir)) {
+            val subDirs = currentDir.listFiles()?.filter { it.isDirectory } ?: break
+            if (subDirs.size == 1) {
+                currentDir = subDirs[0]
+            } else {
+                break
+            }
+        }
+        if (currentDir != newMapDir) {
+            // 把currentDir的内容复制到newMapDir，然后删除currentDir
+            currentDir.listFiles()?.forEach { file ->
+                val destFile = File(newMapDir, file.name)
+                if (file.isDirectory) {
+                    file.copyRecursively(destFile, true)
+                } else {
+                    file.copyTo(destFile, true)
+                }
+            }
+            currentDir.deleteRecursively()
+        }
+        logger.info("Map $mapName extracted to ${newMapDir.path}")
+
+        // 修改server.properties中的level-name
+        val properties = serverConfig.getServerProperties().toMutableMap()
+        properties["level-name"] = newMapDirName
+        serverConfig.saveServerProperties(properties)
+
+        reloadServerContainer(serverName)
+    }
+
+    private fun unzip(zipFile: File, targetDir: File) {
+        java.util.zip.ZipFile(zipFile).use { zip ->
+            zip.entries().asSequence().forEach { entry ->
+                val entryDest = File(targetDir, entry.name)
+                if (entry.isDirectory) {
+                    entryDest.mkdirs()
+                } else {
+                    entryDest.parentFile?.mkdirs()
+                    zip.getInputStream(entry).use { input ->
+                        entryDest.outputStream().use { output ->
+                            input.copyTo(output)
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

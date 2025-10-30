@@ -299,6 +299,21 @@ def reload_server_container(server_name: str):
 
     return f"服务器 '{server_name}' 的容器数据已重新加载"
 
+# 新增：通过备份目录加载地图（mapName 为 zip 文件名）
+@mcp.tool()
+def load_map(server_name: str, map_name: str) -> str:
+    """
+    从服务器的备份目录加载指定的地图压缩包（map_name），并将其设置为当前 level-name。
+    注意：服务器必须处于停止状态，Service 会校验并抛出错误。
+    """
+    params = {"mapName": map_name}
+    result = server_manager._make_request("POST", f"/server/{server_name}/loadMap", params=params)
+
+    if "error" in result:
+        return f"加载地图 '{map_name}' 到服务器 '{server_name}' 失败: {result['error']}"
+
+    return f"地图 '{map_name}' 已成功加载到服务器 '{server_name}'，并已更新 level-name"
+
 # 资源定义：提供服务器统计信息
 @mcp.resource("server://stats")
 def get_server_stats() -> str:
