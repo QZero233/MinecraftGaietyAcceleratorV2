@@ -228,32 +228,6 @@ def get_system_overhead() -> str:
     """
     获取管理端（应用服务器）所在主机的系统负载概览，调用后端接口：GET /stat/overhead。
 
-    返回（overhead 对象字段说明）：
-    - timestamp: 整数，时间戳，单位毫秒（ms），表示采样时间。
-    - cpu: Object，包含：
-        - systemLoad: float 或 null，总体 CPU 使用率百分比（0-100）。
-        - perCore: Array[float] 或 null，每个逻辑 CPU 的使用率百分比列表（0-100）。
-        - user, system, idle 等（可选）：分别表示不同 CPU 时间占比（百分比或秒，依后端实现）。
-    - memory: Object，包含：
-        - totalBytes: 整数，总内存（字节）。
-        - usedBytes: 整数，已使用内存（字节）。
-        - usedPercent: float，已使用内存百分比（0-100）。
-        - swapTotalBytes, swapUsedBytes, swapUsedPercent: 交换区相关字段（可选）。
-    - loadAverages: Array[float] 或 null，系统负载平均值 [1min,5min,15min]（类 Unix 系统）。
-    - disks: Array[Object]，每个对象包含：
-        - name: 磁盘设备名或挂载点标识。
-        - model: 磁盘型号（可选）。
-        - sizeBytes: 整数，总容量（字节）。
-        - readBytesPerSec, writeBytesPerSec: 流量速率（字节/秒，可选）。
-        - readOpsPerSec, writeOpsPerSec: IO 操作每秒（可选）。
-    - networkInterfaces: Array[Object]，每个对象包含：
-        - name: 接口名（如 eth0）。
-        - displayName: 人类可读名称（可选）。
-        - recvBytesPerSec, sentBytesPerSec: 网络收发速率（字节/秒，可选）。
-        - recvPacketsPerSec, sentPacketsPerSec: 报文速率（可选）。
-
-    注意：后端可能返回部分字段为 null 或省略，本接口会尽量容错并以可读文本返回摘要。
-
     返回：格式化的简要文本，包含CPU总体占用、每核占用（前几个）、内存使用、磁盘和网络速率摘要等。
     """
     try:
