@@ -343,46 +343,9 @@ def get_system_overhead() -> str:
 @mcp.tool()
 def get_chest_info(x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> str:
     """
-    查看指定区域内的容器物品信息。
+    查询指定区域内的容器（箱子）并返回可读的文本报告。
 
-    Args:
-        x1 (int): 区域第一个角点的x坐标
-        y1 (int): 区域第一个角点的y坐标
-        z1 (int): 区域第一个角点的z坐标
-        x2 (int): 区域第二个角点的x坐标
-        y2 (int): 区域第二个角点的z坐标
-        z2 (int): 区域第二个角点的z坐标
-
-    Returns:
-        str: 容器物品信息的格式化结果，其中json的定义如下：
-        * 根对象（root）
-         * 类型：Object
-         * 说明：顶层 JSON 对象，包含区域信息、合并统计和每个容器明细（或 error 字段，见错误响应部分）。
-         * region
-         * 类型：Object
-         * 必需：是（在成功响应时）
-         * 结构：
-         * from: Array[3]（整数） — 最小坐标 [x_min, y_min, z_min]（包含端点）
-         * to: Array[3]（整数） — 最大坐标 [x_max, y_max, z_max]（包含端点）
-         * 说明：表示请求中两个坐标规范化后的包围盒（从小角到大角）。用于让调用方确认服务端所扫描的范围。
-         * totalItems
-         * 类型：Object（map）
-         * 必需：是（若范围内无容器则为空对象 {}）
-         * 键（key）：字符串 — item 的注册 ID（Registry ID），例如 "minecraft:iron_ingot"。
-         * 值（value）：Object，包含：
-         * count: Integer — 在整个指定区域内该物品的总数量（已合并多个箱子）。例如 15。
-         * displayName: String — 该物品的显示名称（本地化的 stack.name.string），用于展示中文名称；如果无法获取则回退为 item id。
-         * 说明：按 item id 汇总的总计结果，便于机器解析并保留人类可读名称。
-         * containers
-         * 类型：Array[Object]
-         * 必需：是（若范围内无容器则返回空数组 []）
-         * 每个元素（单个容器）结构：
-         * pos: Array[3]（整数） — 容器方块的坐标 [x, y, z]。
-         * items: Object（map） — 类似于 totalItems 的映射，键为 item id，值为：
-         * count: Integer — 该容器内该物品的数量（合并该格位或多个格位数量）。
-         * displayName: String — 本地化显示名（与 totalItems 的 displayName 对应）。
-         * 说明：按容器（箱子）逐个列出位置与内部物品明细，便于定位和进一步处理。
-
+    返回：多行的中文可读文本，包含区域信息、总计物品摘要（按数量排序，限制展示前若干项）、容器数量，并列出若干容器的位置与其物品明细（每个容器限制展示若干条目以避免输出过长）。
     """
     # 构建查询参数
     params = {
@@ -394,10 +357,116 @@ def get_chest_info(x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> str:
         "z2": z2
     }
 
-    # 发送GET请求到/chest_info端点
     result = server_manager._make_request("GET", "/chest_info", params=params)
 
-    return json.dumps(result.get("data", {}))
+    if "error" in result:
+        return f"获取容器信息失败: {result['error']}"
+
+    # 兼容 data 包装或直接返回 root 的情况
+    payload = result.get("data") if isinstance(result.get("data"), dict) else result
+    if not payload:
+        return "未获得容器信息"
+
+    if isinstance(payload, dict) and payload.get("error"):
+        return f"获取容器信息失败: {payload.get('error')}"
+
+    # 安全获取字段
+    region = payload.get("region") or {}
+    region_from = region.get("from") or []
+    region_to = region.get("to") or []
+    total_items = payload.get("totalItems") or {}
+    containers = payload.get("containers") or []
+
+    lines = []
+    # Region summary
+    try:
+        lines.append("=== Chest Info ===")
+        if region_from and region_to and len(region_from) >= 3 and len(region_to) >= 3:
+            lines.append(f"区域: from {region_from[0]},{region_from[1]},{region_from[2]} to {region_to[0]},{region_to[1]},{region_to[2]}")
+            # 计算体积（容错）
+            try:
+                dx = abs(int(region_to[0]) - int(region_from[0])) + 1
+                dy = abs(int(region_to[1]) - int(region_from[1])) + 1
+                dz = abs(int(region_to[2]) - int(region_from[2])) + 1
+                vol = dx * dy * dz
+                lines.append(f"体积 (blocks): {vol}")
+            except Exception:
+                pass
+        else:
+            lines.append("区域: N/A")
+
+        lines.append(f"容器数量: {len(containers)}")
+        lines.append(f"物品种类数: {len(total_items)}")
+
+        # Top total items
+        if total_items:
+            lines.append("-- 总计物品（按数量排序） --")
+            try:
+                items_list = sorted(total_items.items(), key=lambda kv: int(kv[1].get('count', 0)), reverse=True)
+            except Exception:
+                # 兼容不同数据结构
+                items_list = list(total_items.items())
+            for idx, (item_id, item_obj) in enumerate(items_list):
+                try:
+                    cnt = item_obj.get('count', item_obj if isinstance(item_obj, int) else 0)
+                    name = item_obj.get('displayName', item_id) if isinstance(item_obj, dict) else item_id
+                except Exception:
+                    cnt = item_obj if isinstance(item_obj, int) else 0
+                    name = item_id
+                lines.append(f"{idx+1}. {name} ({item_id}) x {cnt}")
+        else:
+            lines.append("无总计物品数据")
+
+        # Containers detail — 不限制数量，返回后端所有容器数据
+        if containers:
+            lines.append(f"-- 容器明细（返回后端提供的全部容器） --")
+            for ci, cont in enumerate(containers):
+                try:
+                    # cont is expected to be object with pos array and items map
+                    pos = cont.get('pos') if isinstance(cont, dict) else None
+                    items = cont.get('items') if isinstance(cont, dict) else None
+                    if pos and len(pos) >= 3:
+                        lines.append(f"[{ci+1}] 位置: {pos[0]},{pos[1]},{pos[2]}")
+                    else:
+                        # Some backends may send pair-like arrays [pos, items]
+                        if isinstance(cont, list) and len(cont) >= 2:
+                            pos = cont[0]
+                            items = cont[1]
+                            if isinstance(pos, list) and len(pos) >= 3:
+                                lines.append(f"[{ci+1}] 位置: {pos[0]},{pos[1]},{pos[2]}")
+                            else:
+                                lines.append(f"[{ci+1}] 位置: N/A")
+                        else:
+                            lines.append(f"[{ci+1}] 位置: N/A")
+
+                    if not items:
+                        lines.append("  无物品")
+                        continue
+
+                    # items is expected to be map id -> {count, displayName}
+                    try:
+                        items_list = sorted(items.items(), key=lambda kv: int(kv[1].get('count', 0)), reverse=True)
+                    except Exception:
+                        # fallback if items structure different
+                        items_list = list(items.items())
+
+                    for ii, (iid, iobj) in enumerate(items_list):
+                        try:
+                            icnt = iobj.get('count', iobj if isinstance(iobj, int) else 0)
+                            iname = iobj.get('displayName', iid) if isinstance(iobj, dict) else iid
+                        except Exception:
+                            icnt = iobj if isinstance(iobj, int) else 0
+                            iname = iid
+                        lines.append(f"  - {iname} ({iid}) x {icnt}")
+
+                except Exception as e:
+                    lines.append(f"  [解析容器时出错] {str(e)}")
+        else:
+            lines.append("无容器数据")
+
+        return "\n".join(lines)
+    except Exception as e:
+        return f"处理容器信息时发生错误: {str(e)}"
 
 @mcp.tool()
 def reload_server_container(server_name: str):
