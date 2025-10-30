@@ -13,6 +13,7 @@ import com.qzero.mcga.minecraft.container.EmbedMinecraftServerContainer
 import com.qzero.mcga.minecraft.MinecraftServerEventListener
 import com.qzero.mcga.minecraft.container.IMinecraftServerContainer
 import com.qzero.mcga.minecraft.container.daemon.DaemonMinecraftServerContainer
+import org.glavo.rcon.Rcon
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.File
@@ -176,6 +177,34 @@ class MinecraftServerService(
         val container = getContainerAndInitIfMissing(serverName)
 
         container.sendCommand(command)
+    }
+
+    /**
+     * 读取服务器配置，如果rcon开启了，那么就使用配置里的RCON端口和密码访问，并发送指令，然后返回执行结果
+     */
+    fun sendCommandRCON(serverName: String, command: String): String {
+        val serverConfig = listAllServers().find { it.serverName == serverName }
+            ?: throw ResponsiveException("Server $serverName not found")
+
+        val container = getContainerAndInitIfMissing(serverName)
+        if (!container.isServerRunning()) {
+            throw ResponsiveException("Server $serverName is not running")
+        }
+
+        val properties = serverConfig.getServerProperties()
+        val rconEnabled = properties["enable-rcon"]?.toBoolean() ?: false
+        if (!rconEnabled) {
+            throw ResponsiveException("RCON is not enabled on server $serverName")
+        }
+
+        val rconPort = properties["rcon.port"]?.toIntOrNull()
+            ?: throw ResponsiveException("RCON port is not configured properly on server $serverName")
+        val rconPassword = properties["rcon.password"]
+            ?: throw ResponsiveException("RCON password is not configured on server $serverName")
+
+        Rcon("localhost", rconPort, rconPassword).use {
+            return it.command(command)
+        }
     }
 
     fun listAllProperties(serverName: String): Map<String, String> {

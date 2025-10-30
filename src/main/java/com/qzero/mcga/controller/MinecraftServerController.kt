@@ -125,6 +125,27 @@ class MinecraftServerController(
     }
 
     /**
+     * 接口名称：通过 RCON 向服务器发送命令并返回结果
+     * 接口路径：/server/{serverName}/rcon
+     * 请求方法：POST
+     * 请求参数：
+     * - path variable: serverName
+     * - request param: command - 要通过 RCON 发送的命令文本
+     *
+     * 行为说明：
+     * - Service 层会检查 RCON 是否启用并执行命令，若未启用或配置错误会抛出异常。
+     * - 成功时返回 ActionResult，data 字段为 RCON 返回的原始字符串结果。
+     */
+    @PostMapping("/server/{serverName}/rcon")
+    fun sendCommandRcon(
+        @PathVariable serverName: String,
+        @RequestParam command: String
+    ): ActionResult {
+        val result: String = minecraftServerService.sendCommandRCON(serverName, command)
+        return ActionResult("result", result)
+    }
+
+    /**
      * 接口名称：列出指定服务器的属性（server.properties）
      * 接口路径：/server/{serverName}/properties
      * 请求方法：GET

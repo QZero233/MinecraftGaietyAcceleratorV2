@@ -314,6 +314,26 @@ def load_map(server_name: str, map_name: str) -> str:
 
     return f"地图 '{map_name}' 已成功加载到服务器 '{server_name}'，并已更新 level-name"
 
+# 新增：通过 RCON 发送命令并获取返回结果
+@mcp.tool()
+def send_command_rcon(server_name: str, command: str) -> str:
+    """
+    通过服务器的 RCON 接口发送命令并返回执行结果字符串。
+    """
+    params = {"command": command}
+    result = server_manager._make_request("POST", f"/server/{server_name}/rcon", params=params)
+
+    if "error" in result:
+        return f"通过 RCON 发送命令到服务器 '{server_name}' 失败: {result['error']}"
+
+    # 如果后端返回结构为 { "data": { "result": "..." } } 或直接 { "result": "..." }，兼容处理
+    data = result.get("data", result)
+    rcon_result = data.get("result") if isinstance(data, dict) else None
+    if rcon_result is None:
+        # 尝试把整个 data 序列化返回
+        return f"RCON 返回: {json.dumps(data)}"
+    return f"RCON 返回: {rcon_result}"
+
 # 资源定义：提供服务器统计信息
 @mcp.resource("server://stats")
 def get_server_stats() -> str:

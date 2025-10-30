@@ -38,6 +38,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
+    implementation("org.glavo:rcon-java:3.0")
 }
 
 tasks.named('test') {
