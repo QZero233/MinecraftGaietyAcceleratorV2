@@ -222,6 +222,150 @@ JVM参数: {target_server.get('serverJvmParams', '无')}
 
     return status_info
 
+# 新增 MCP 工具：获取系统负载概览
+@mcp.tool()
+def get_system_overhead() -> str:
+    """
+    获取管理端（应用服务器）所在主机的系统负载概览，调用后端接口：GET /stat/overhead。
+
+    返回（overhead 对象字段说明）：
+    - timestamp: 整数，时间戳，单位毫秒（ms），表示采样时间。
+    - cpu: Object，包含：
+        - systemLoad: float 或 null，总体 CPU 使用率百分比（0-100）。
+        - perCore: Array[float] 或 null，每个逻辑 CPU 的使用率百分比列表（0-100）。
+        - user, system, idle 等（可选）：分别表示不同 CPU 时间占比（百分比或秒，依后端实现）。
+    - memory: Object，包含：
+        - totalBytes: 整数，总内存（字节）。
+        - usedBytes: 整数，已使用内存（字节）。
+        - usedPercent: float，已使用内存百分比（0-100）。
+        - swapTotalBytes, swapUsedBytes, swapUsedPercent: 交换区相关字段（可选）。
+    - loadAverages: Array[float] 或 null，系统负载平均值 [1min,5min,15min]（类 Unix 系统）。
+    - disks: Array[Object]，每个对象包含：
+        - name: 磁盘设备名或挂载点标识。
+        - model: 磁盘型号（可选）。
+        - sizeBytes: 整数，总容量（字节）。
+        - readBytesPerSec, writeBytesPerSec: 流量速率（字节/秒，可选）。
+        - readOpsPerSec, writeOpsPerSec: IO 操作每秒（可选）。
+    - networkInterfaces: Array[Object]，每个对象包含：
+        - name: 接口名（如 eth0）。
+        - displayName: 人类可读名称（可选）。
+        - recvBytesPerSec, sentBytesPerSec: 网络收发速率（字节/秒，可选）。
+        - recvPacketsPerSec, sentPacketsPerSec: 报文速率（可选）。
+
+    注意：后端可能返回部分字段为 null 或省略，本接口会尽量容错并以可读文本返回摘要。
+
+    返回：格式化的简要文本，包含CPU总体占用、每核占用（前几个）、内存使用、磁盘和网络速率摘要等。
+    """
+    try:
+        result = server_manager._make_request("GET", "/stat/overhead")
+
+        if "error" in result:
+            return f"获取系统负载失败: {result['error']}"
+
+        overhead = result.get("data", {}).get("overhead", {})
+        if not overhead:
+            return "未获得负载信息"
+
+        # 容错的值格式化器
+        def pct(v):
+            try:
+                if v is None:
+                    return "N/A"
+                return f"{float(v):.2f}%"
+            except Exception:
+                return str(v)
+
+        def num(v):
+            try:
+                if v is None:
+                    return "N/A"
+                return str(v)
+            except Exception:
+                return str(v)
+
+        def bytes_human(n):
+            try:
+                if n is None:
+                    return "N/A"
+                n = float(n)
+                units = ["B", "KB", "MB", "GB", "TB"]
+                i = 0
+                while n >= 1024 and i < len(units)-1:
+                    n /= 1024.0
+                    i += 1
+                return f"{n:.2f} {units[i]}"
+            except Exception:
+                return str(n)
+
+        cpu = overhead.get("cpu") or {}
+        memory = overhead.get("memory") or {}
+        load_avg = overhead.get("loadAverages") or []
+        disks = overhead.get("disks") or []
+        nets = overhead.get("networkInterfaces") or []
+
+        lines = []
+        ts = overhead.get('timestamp')
+        try:
+            if ts:
+                lines.append(f"时间: {datetime.fromtimestamp(int(ts)/1000.0).strftime('%Y-%m-%d %H:%M:%S')}")
+            else:
+                lines.append("时间: N/A")
+        except Exception:
+            lines.append(f"时间: {num(ts)}")
+
+        lines.append("--- CPU ---")
+        lines.append(f"总体 CPU: {pct(cpu.get('systemLoad'))}")
+        per_core = cpu.get('perCore') or []
+        if per_core:
+            preview = per_core[:8]  # 展示更多核但不过长
+            lines.append("每核 (前8): " + ", ".join([pct(p) for p in preview]))
+        # 额外字段兼容显示
+        for k in ('user', 'system', 'idle'):
+            if k in cpu:
+                lines.append(f"CPU {k}: {pct(cpu.get(k))}")
+
+        lines.append("--- Memory ---")
+        lines.append(f"总内存: {bytes_human(memory.get('totalBytes'))}")
+        lines.append(f"已用: {bytes_human(memory.get('usedBytes'))} ({pct(memory.get('usedPercent'))})")
+        # swap
+        if 'swapUsedBytes' in memory or 'swapUsedPercent' in memory or 'swapTotalBytes' in memory:
+            lines.append(f"Swap 总计: {bytes_human(memory.get('swapTotalBytes'))} 已用: {bytes_human(memory.get('swapUsedBytes'))} ({pct(memory.get('swapUsedPercent'))})")
+
+        lines.append("--- LoadAvg ---")
+        if load_avg:
+            try:
+                la_str = ", ".join([("NaN" if (x is None or (isinstance(x, float) and (x != x))) else f"{float(x):.2f}") for x in load_avg])
+            except Exception:
+                la_str = ", ".join([str(x) for x in load_avg])
+            lines.append(f"LoadAvg (1,5,15): {la_str}")
+        else:
+            lines.append("LoadAvg: N/A")
+
+        # Disk 和 Network 简要（只列出前两项各自最活跃的）
+        def top_sorted(items, key):
+            try:
+                return sorted(items, key=lambda it: float(it.get(key) or 0), reverse=True)
+            except Exception:
+                return items
+
+        if disks:
+            lines.append("--- Disks (top 2 by writeBytesPerSec) ---")
+            top_disks = top_sorted(disks, 'writeBytesPerSec')[:2]
+            for d in top_disks:
+                lines.append(f"{d.get('name') or d.get('device') or 'unknown'} model={d.get('model') or 'N/A'} size={bytes_human(d.get('sizeBytes'))} write={bytes_human(d.get('writeBytesPerSec'))}/s read={bytes_human(d.get('readBytesPerSec'))}/s")
+
+        if nets:
+            lines.append("--- Network (top 2 by recvBytesPerSec) ---")
+            top_nets = top_sorted(nets, 'recvBytesPerSec')[:2]
+            for n in top_nets:
+                lines.append(f"{n.get('name') or 'unknown'} {n.get('displayName') or ''} rx={bytes_human(n.get('recvBytesPerSec'))}/s tx={bytes_human(n.get('sentBytesPerSec'))}/s")
+
+        return "\n".join(lines)
+
+    except Exception as e:
+        # 捕获任何意外错误，返回错误信息而不是让 MCP 失效
+        return f"处理系统负载时发生错误: {str(e)}"
+
 @mcp.tool()
 def get_chest_info(x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> str:
     """
