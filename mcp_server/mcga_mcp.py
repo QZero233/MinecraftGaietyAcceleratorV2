@@ -281,6 +281,24 @@ def get_chest_info(x1: int, y1: int, z1: int, x2: int, y2: int, z2: int) -> str:
 
     return json.dumps(result.get("data", {}))
 
+@mcp.tool()
+def reload_server_container(server_name: str):
+    """
+    重新加载指定服务器的容器数据。
+
+    Args:
+        server_name (str): 目标服务器名称
+
+    Returns:
+        str: 重新加载操作的结果信息
+    """
+    result = server_manager._make_request("POST", f"/server/{server_name}/reload")
+
+    if "error" in result:
+        return f"重新加载服务器 '{server_name}' 容器数据失败: {result['error']}"
+
+    return f"服务器 '{server_name}' 的容器数据已重新加载"
+
 # 资源定义：提供服务器统计信息
 @mcp.resource("server://stats")
 def get_server_stats() -> str:

@@ -175,4 +175,23 @@ class MinecraftServerController(
         return ActionResult(true)
     }
 
+    /**
+     * 接口名称：重新加载服务器容器
+     * 接口路径：/server/{serverName}/reload
+     * 请求方法：POST
+     *
+     * 请求参数：无
+     *
+     * 响应：ActionResult
+     * - 本接口不在返回体中包含 data 部分（即 data 字段不传），仅通过 ActionResult 的 responseCode 表明请求是否成功。
+     */
+    @PostMapping("/server/{serverName}/reload")
+    fun reloadServerContainer(@PathVariable serverName: String): ActionResult {
+        // 调用 Service 重新加载服务器容器
+        minecraftServerService.reloadServerContainer(serverName)
+
+        // 重新加载请求已发出且完成，不返回 data，仅返回成功状态
+        return ActionResult(true)
+    }
+
 }

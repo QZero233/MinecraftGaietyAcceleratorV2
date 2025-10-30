@@ -165,15 +165,11 @@ class MinecraftServerService(
      * 发起停止指定服务器的操作。
      * 行为与异常：
      * - 如果服务器未在运行，抛出 ResponsiveException("Server X is not running")。
-     * - 成功时会调用容器的 stopServer 并从 serverContainers 中移除该容器。
      */
     fun stopServer(serverName: String) {
         val container = getContainerAndInitIfMissing(serverName)
 
         container.stopServer()
-        synchronized(serverContainers) {
-            serverContainers.remove(serverName)
-        }
     }
 
     fun sendCommand(serverName: String, command: String) {
@@ -201,9 +197,6 @@ class MinecraftServerService(
 
     override fun onServerStopped(serverName: String) {
         serverEventCenter.publishServerEvent(ServerStoppedEvent(serverName))
-        synchronized(serverContainers) {
-            serverContainers.remove(serverName)
-        }
     }
 
     override fun onOutputLine(serverName: String, line: String) {
@@ -261,5 +254,19 @@ class MinecraftServerService(
         messageLines.forEach {
             container.sendCommand("say $it")
         }
+    }
+
+    fun reloadServerContainer(serverName: String) {
+        synchronized(serverContainers) {
+            if (serverContainers.containsKey(serverName)) {
+                if (serverContainers[serverName]!!.isServerRunning() && serverContainers[serverName] is EmbedMinecraftServerContainer) {
+                    throw ResponsiveException("Cannot reload a running embed server: $serverName")
+                } else {
+                    serverContainers.remove(serverName)
+                }
+            }
+        }
+
+        getContainerAndInitIfMissing(serverName)
     }
 }
