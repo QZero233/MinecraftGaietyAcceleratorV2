@@ -337,8 +337,15 @@ class MinecraftServerService(
                 index++
             }
         }
+        logger.info("Extracting map $mapName to ${newMapDir.path} ...")
 
-        unzip(mapFile, newMapDir)
+        try {
+            unzip(mapFile, newMapDir)
+        } catch (e: Exception) {
+            logger.error("Failed to extract map file: ${e.message}", e)
+            throw ResponsiveException("Failed to extract map file: ${e.message}")
+        }
+
         // 检查一下，如果文件夹里面没有level.dat，并且还有子文件夹，那么就把字文件夹复制出来，直到指定文件夹里有level.dat为止
         fun containsLevelDat(dir: File): Boolean {
             return File(dir, "level.dat").exists()
@@ -352,6 +359,7 @@ class MinecraftServerService(
                 break
             }
         }
+        logger.info("Final map directory determined to be: ${currentDir.path}")
         if (currentDir != newMapDir) {
             // 把currentDir的内容复制到newMapDir，然后删除currentDir
             currentDir.listFiles()?.forEach { file ->
@@ -364,7 +372,7 @@ class MinecraftServerService(
             }
             currentDir.deleteRecursively()
         }
-        logger.info("Map $mapName extracted to ${newMapDir.path}")
+        logger.info("Map $mapName moved to ${newMapDir.path}")
 
         // 修改server.properties中的level-name
         val properties = serverConfig.getServerProperties().toMutableMap()

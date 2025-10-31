@@ -27,7 +27,6 @@ class ServerManager:
                 params=params,
                 json=data,
                 headers=self.headers,
-                timeout=30
             )
             response.raise_for_status()
             return response.json()
@@ -481,10 +480,7 @@ def reload_server_container(server_name: str):
     """
     result = server_manager._make_request("POST", f"/server/{server_name}/reload")
 
-    if "error" in result:
-        return f"重新加载服务器 '{server_name}' 容器数据失败: {result['error']}"
-
-    return f"服务器 '{server_name}' 的容器数据已重新加载"
+    return "服务器返回结果：" + json.dumps(result)
 
 # 新增：通过备份目录加载地图（mapName 为 zip 文件名）
 @mcp.tool()
@@ -495,11 +491,9 @@ def load_map(server_name: str, map_name: str) -> str:
     """
     params = {"mapName": map_name}
     result = server_manager._make_request("POST", f"/server/{server_name}/loadMap", params=params)
+    print(result)
 
-    if "error" in result:
-        return f"加载地图 '{map_name}' 到服务器 '{server_name}' 失败: {result['error']}"
-
-    return f"地图 '{map_name}' 已成功加载到服务器 '{server_name}'，并已更新 level-name"
+    return "服务器返回结果：" + json.dumps(result)
 
 # 新增：通过 RCON 发送命令并获取返回结果
 @mcp.tool()
