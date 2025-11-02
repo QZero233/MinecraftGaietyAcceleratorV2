@@ -40,7 +40,7 @@ class ChatBotService(
 
     private var savedApiKey = chatBotConfig.apiKey
 
-    fun getChatResponse(message: String, serverName: String, playerId: String): String {
+    fun getChatResponse(message: String, serverName: String, playerId: String, fromMCGAAdmin: Boolean = false): String {
         if (!chatBotConfig.enabled) {
             return "ChatBot service is disabled."
         }
@@ -51,7 +51,8 @@ class ChatBotService(
             val formData = listOf(
                 "message" to message,
                 "serverName" to serverName,
-                "minecraftId" to playerId
+                "minecraftId" to playerId,
+                "fromMCGAAdmin" to fromMCGAAdmin.toString()
             )
             val entity = org.apache.http.client.entity.UrlEncodedFormEntity(
                 formData.map { org.apache.http.message.BasicNameValuePair(it.first, it.second) },

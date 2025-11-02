@@ -85,3 +85,9 @@ export async function getOverhead() {
   const r = await client.get('/stat/overhead')
   return r.data
 }
+
+// 管理员聊天接口（触发后端 ChatBotService，fromMCGAAdmin=true）
+export async function adminChat(message: string) {
+  const r = await client.post('/admin/chat', null, { params: { message } })
+  return r.data
+}
