@@ -160,6 +160,7 @@ class MinecraftServerService(
         }
 
         container.startServer()
+        waitForServerState(container, true)
     }
 
     /**
@@ -171,6 +172,23 @@ class MinecraftServerService(
         val container = getContainerAndInitIfMissing(serverName)
 
         container.stopServer()
+        waitForServerState(container, false)
+    }
+
+    // 10秒内每0.2秒检查一次，状态正确了再返回，否则就抛出异常
+    private fun waitForServerState(container: IMinecraftServerContainer, desiredRunningState: Boolean) {
+        val maxWaitTimeMs = 10_000L
+        val checkIntervalMs = 200L
+        var waitedTime = 0L
+
+        while (container.isServerRunning() != desiredRunningState && waitedTime < maxWaitTimeMs) {
+            Thread.sleep(checkIntervalMs)
+            waitedTime += checkIntervalMs
+        }
+
+        if (container.isServerRunning() != desiredRunningState) {
+            throw ResponsiveException("Failed to change server state within timeout, desired running state: $desiredRunningState, server name : ${container.serverConfig.serverName}")
+        }
     }
 
     fun sendCommand(serverName: String, command: String) {
