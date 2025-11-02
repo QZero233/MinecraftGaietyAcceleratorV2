@@ -81,10 +81,7 @@ def start_server(server_name: str) -> str:
     """
     result = server_manager._make_request("POST", f"/server/{server_name}/start")
 
-    if "error" in result:
-        return f"启动服务器 '{server_name}' 失败: {result['error']}"
-
-    return f"服务器 '{server_name}' 启动命令已发送"
+    return f"服务器 '{server_name}' 启动命令已发送，服务器返回： {json.dumps(result)}"
 
 @mcp.tool()
 def stop_server(server_name: str) -> str:
@@ -99,10 +96,7 @@ def stop_server(server_name: str) -> str:
     """
     result = server_manager._make_request("POST", f"/server/{server_name}/stop")
 
-    if "error" in result:
-        return f"停止服务器 '{server_name}' 失败: {result['error']}"
-
-    return f"服务器 '{server_name}' 停止命令已发送"
+    return f"服务器 '{server_name}' 停止命令已发送，服务器返回： {json.dumps(result)}"
 
 @mcp.tool()
 def backup_server(server_name: str, file_name: Optional[str] = None) -> str:
@@ -122,13 +116,7 @@ def backup_server(server_name: str, file_name: Optional[str] = None) -> str:
 
     result = server_manager._make_request("POST", f"/server/{server_name}/backup", params=params)
 
-    if "error" in result:
-        return f"备份服务器 '{server_name}' 失败: {result['error']}"
-
-    if file_name:
-        return f"服务器 '{server_name}' 已备份为 {file_name}"
-    else:
-        return f"服务器 '{server_name}' 备份已完成（使用默认文件名）"
+    return f"服务器 '{server_name}' 备份指令已发出，服务器返回： {json.dumps(result)}"
 
 @mcp.tool()
 def list_server_properties(server_name: str) -> str:
@@ -173,10 +161,8 @@ def update_server_property(server_name: str, key: str, value: str) -> str:
     params = {"key": key, "value": value}
     result = server_manager._make_request("POST", f"/server/{server_name}/property", params=params)
 
-    if "error" in result:
-        return f"更新服务器 '{server_name}' 属性失败: {result['error']}"
 
-    return f"服务器 '{server_name}' 的属性 '{key}' 已更新为 '{value}'"
+    return f"服务器返回： {json.dumps(result)}"
 
 @mcp.tool()
 def get_server_status(server_name: str) -> str:
