@@ -20,6 +20,18 @@ repositories {
     mavenCentral()
 }
 
+// Ensure we don't get multiple SLF4J/Log4j providers on the classpath.
+// Remove Logback and the log4j-to-slf4j bridge which conflict with log4j-slf4j2-impl.
+configurations.all {
+    // Remove Spring Boot's default logging starter (Logback + log4j-to-slf4j) wherever it appears transitively
+    exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+    // Also explicitly exclude known conflicting artifacts
+    exclude group: 'ch.qos.logback', module: 'logback-classic'
+    exclude group: 'ch.qos.logback', module: 'logback-core'
+    exclude group: 'org.apache.logging.log4j', module: 'log4j-to-slf4j'
+    exclude group: 'commons-logging', module: 'commons-logging'
+}
+
 dependencies {
     // 使用 spring-boot-starter-web，但排除默认的 spring-boot-starter-logging 和 commons-logging
     implementation('org.springframework.boot:spring-boot-starter-web') {
@@ -41,6 +53,14 @@ dependencies {
     implementation("org.glavo:rcon-java:3.0")
     // OSHI - Operating System and Hardware Information for comprehensive system metrics
     implementation 'com.github.oshi:oshi-core:6.4.0'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    // 添加Mysql Driver
+    runtimeOnly 'com.mysql:mysql-connector-j:8.1.0'
+
+    // 安装腾讯云COS SDK
+    implementation('com.qcloud:cos_api:5.6.246.3')
 }
 
 tasks.named('test') {

@@ -38,3 +38,7 @@ out/
 
 application-local*.yml
 /server/
+/frontend/node_modules/
+/frontend/dist/
+/frontend/dist.zip
+/frontend/package-lock.json
