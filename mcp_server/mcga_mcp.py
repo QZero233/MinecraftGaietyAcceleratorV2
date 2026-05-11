@@ -526,6 +526,190 @@ def get_server_stats() -> str:
 
     return stats
 
+@mcp.tool()
+def get_player_logs(server_name: str = None, limit: int = 50) -> str:
+    """
+    获取玩家登录和退出服务器的日志记录。
+
+    Args:
+        server_name (str, optional): 指定服务器名称，不传则返回所有服务器
+        limit (int, optional): 返回的日志条数上限，默认50
+
+    Returns:
+        str: 玩家日志的格式化信息
+    """
+    params = {"limit": limit}
+    if server_name:
+        params["serverName"] = server_name
+
+    result = server_manager._make_request("GET", "/player-log/recent", params=params)
+
+    if "error" in result:
+        return f"获取玩家日志失败: {result['error']}"
+
+    logs = result.get("data", {}).get("logs", [])
+
+    if not logs:
+        return "暂无玩家日志记录"
+
+    lines = [f"玩家日志 (最近{limit}条):", "=" * 50]
+    event_map = {"join": "加入游戏", "leave": "离开游戏"}
+    for log in logs:
+        event_type = event_map.get(log.get("eventType"), log.get("eventType"))
+        lines.append(f"[{log.get('eventTime')}] {log.get('playerName')} {event_type} @ {log.get('serverName')}")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def get_player_history(player_name: str, server_name: str = None) -> str:
+    """
+    查询指定玩家的登录/退出历史记录，包含每次事件的时间。
+
+    Args:
+        player_name (str): 玩家名称
+        server_name (str, optional): 筛选指定服务器
+
+    Returns:
+        str: 玩家历史的格式化信息（含时间）
+    """
+    params = {}
+    if server_name:
+        params["serverName"] = server_name
+
+    result = server_manager._make_request("GET", f"/player-log/player/{player_name}", params=params)
+
+    if "error" in result:
+        return f"获取玩家历史失败: {result['error']}"
+
+    logs = result.get("data", {}).get("logs", [])
+
+    if not logs:
+        server_info = f" on {server_name}" if server_name else ""
+        return f"未找到玩家 '{player_name}'{server_info} 的登录记录"
+
+    lines = [f"玩家 '{player_name}' 的登录历史:", "=" * 50]
+    event_map = {"join": "加入", "leave": "离开"}
+    for log in logs:
+        event_type = event_map.get(log.get("eventType"), log.get("eventType"))
+        lines.append(f"  [{log.get('eventTime')}] {event_type} {log.get('serverName')}")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def get_player_statistics(server_name: str, date: str = None) -> str:
+    """
+    获取指定服务器某天的玩家登录/退出统计。
+
+    Args:
+        server_name (str): 目标服务器名称
+        date (str, optional): 日期，格式 yyyy-MM-dd，默认为今天
+
+    Returns:
+        str: 统计信息的格式化文本
+    """
+    params = {"serverName": server_name}
+    if date:
+        params["date"] = date
+
+    result = server_manager._make_request("GET", "/player-log/statistics", params=params)
+
+    if "error" in result:
+        return f"获取玩家统计失败: {result['error']}"
+
+    stats = result.get("data", {}).get("statistics", {})
+
+    if not stats:
+        return "未获取到统计数据"
+
+    return f"""服务器 '{stats.get('serverName')}' 玩家统计 ({stats.get('date')}):
+========================================
+  登录次数: {stats.get('joinCount', 0)}
+  退出次数: {stats.get('leaveCount', 0)}
+========================================"""
+
+
+@mcp.tool()
+def get_player_sessions(player_name: str, server_name: str = None) -> str:
+    """
+    获取指定玩家的在线会话记录，包含每次登录和退出的具体时间以及在线时长。
+
+    Args:
+        player_name (str): 玩家名称
+        server_name (str, optional): 筛选指定服务器
+
+    Returns:
+        str: 玩家在线时长的格式化信息
+    """
+    params = {"playerName": player_name}
+    if server_name:
+        params["serverName"] = server_name
+
+    result = server_manager._make_request("GET", "/player-log/sessions", params=params)
+
+    if "error" in result:
+        return f"获取玩家在线时长失败: {result['error']}"
+
+    sessions = result.get("data", {}).get("sessions", [])
+
+    if not sessions:
+        return f"未找到玩家 '{player_name}' 的在线记录"
+
+    total_online = 0
+    lines = [f"玩家 '{player_name}' 的在线会话记录:", "=" * 60]
+    for idx, s in enumerate(sessions, 1):
+        join_time = s.get("joinTime", "?")
+        leave_time = s.get("leaveTime", "---")
+        duration = s.get("durationFormatted", "仍在游戏中")
+        lines.append(f"  #{idx}")
+        lines.append(f"    上线: {join_time}")
+        lines.append(f"    下线: {leave_time}")
+        lines.append(f"    时长: {duration}")
+        lines.append("")
+
+        if s.get("durationSeconds") is not None:
+            total_online += s["durationSeconds"]
+
+    # 总在线时长
+    hours = total_online // 3600
+    minutes = (total_online % 3600) // 60
+    seconds = total_online % 60
+    total_str = f"{hours}小时{minutes}分{seconds}秒" if hours > 0 else f"{minutes}分{seconds}秒" if minutes > 0 else f"{seconds}秒"
+    lines.append(f"  总在线时长: {total_str}")
+
+    return "\n".join(lines)
+
+
+@mcp.tool()
+def get_current_players(server_name: str) -> str:
+    """
+    获取指定服务器当前在线的玩家列表及每个玩家上线时间。
+
+    Args:
+        server_name (str): 目标服务器名称
+
+    Returns:
+        str: 当前在线玩家的格式化信息（含加入时间）
+    """
+    params = {"serverName": server_name}
+    result = server_manager._make_request("GET", "/player-log/current-players", params=params)
+
+    if "error" in result:
+        return f"获取当前玩家失败: {result['error']}"
+
+    players = result.get("data", {}).get("players", [])
+
+    if not players:
+        return f"服务器 '{server_name}' 当前没有玩家在线"
+
+    lines = [f"服务器 '{server_name}' 当前在线玩家 ({len(players)}人):", "=" * 40]
+    for p in players:
+        lines.append(f"  - {p.get('playerName')} (上线时间: {p.get('joinTime')})")
+
+    return "\n".join(lines)
+
+
 if __name__ == "__main__":
     # 运行MCP服务器（使用stdio传输，适合与AI客户端集成）
     mcp.run(transport="stdio")
